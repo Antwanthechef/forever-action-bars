@@ -1,0 +1,1341 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body { margin: 0; } [hidden] { display: none !important; } img { max-width: 100%; }</style><title>Forever Action Bars</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Marcellus+SC&family=Alegreya+Sans:wght@400;500;700&display=swap">
+<style>
+/* Layout: header toolbar, then a spellbook column beside a dark "game screen" that holds the bars the way the in-game UI does (bottom stack + right-side vertical bars), keybind list below. */
+:root {
+  color-scheme: dark;
+  --bg: #100e13;
+  --panel: #1a171e;
+  --panel-2: #231f28;
+  --line: #3a3240;
+  --line-gold: #6b5634;
+  --fg: #ece6dc;
+  --muted: #9d94a3;
+  --gold: #ffd100;
+  --gold-soft: #f2c96b;
+  --green: #1eff00;
+  --blue: #6fb6ff;
+  --danger: #ff6a5c;
+  --accent: #c69b6d;
+  --slot-pref: 46px;
+  --display: "Marcellus SC", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  --body: "Alegreya Sans", "Segoe UI", system-ui, sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: auto; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font: 15px/1.45 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 14px 40px;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--gold-soft); outline-offset: 2px; }
+
+/* ---------- header ---------- */
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-bottom: 14px; }
+.brand { display: flex; align-items: baseline; gap: 10px; }
+.brand h1 { font: 400 26px/1.1 var(--display); margin: 0; letter-spacing: .02em; color: var(--gold-soft); text-wrap: balance; }
+.brand span { color: var(--muted); font-size: 13px; }
+.classes { display: flex; flex-wrap: wrap; gap: 6px; }
+.cls-btn {
+  width: 38px; height: 38px; padding: 0; border-radius: 6px;
+  border: 1px solid var(--line); background: var(--panel) center/cover no-repeat;
+  filter: grayscale(.85) brightness(.75); transition: filter .15s, box-shadow .15s;
+}
+.cls-btn:hover { filter: none; }
+.cls-btn[aria-pressed="true"] { filter: none; box-shadow: 0 0 0 2px var(--accent), 0 0 12px -2px var(--accent); border-color: transparent; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
+.btn {
+  border: 1px solid var(--line-gold); background: linear-gradient(#2b2318, #1b160f);
+  color: var(--gold-soft); padding: 6px 12px; border-radius: 4px; font-size: 14px; white-space: nowrap;
+}
+.btn:hover { border-color: var(--gold-soft); color: var(--gold); }
+.btn[aria-pressed="true"] { background: linear-gradient(#3d6b2a, #24401a); border-color: #7fd45a; color: #e9ffe0; }
+.btn.ghost { background: transparent; border-color: var(--line); color: var(--fg); }
+.btn.danger { border-color: var(--danger); color: var(--danger); background: transparent; }
+select.sel { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 5px 8px; max-width: 180px; }
+
+/* ---------- main grid ---------- */
+/* Each side is its own container, so it lays out for its own width whether it fills the page or half of it. */
+.pane { container-type: inline-size; min-width: 0; }
+.workspace.split { display: grid; grid-template-columns: minmax(0, var(--left, 58fr)) 14px minmax(0, var(--right, 42fr)); gap: 0 6px; align-items: start; }
+.splitter { display: none; }
+.split .splitter { display: block; align-self: stretch; position: relative; cursor: col-resize; touch-action: none; border-radius: 4px; }
+.splitter::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; transform: translateX(-1px); background: var(--line); }
+.splitter .knob {
+  position: sticky; top: 45vh; display: block; width: 14px; height: 56px; margin-top: 120px; border-radius: 7px;
+  background: var(--panel-2); border: 1px solid var(--line-gold);
+  background-image: radial-gradient(circle, var(--gold-soft) 1.2px, transparent 1.6px); background-size: 6px 8px; background-position: center;
+}
+.splitter:hover::before, .splitter.dragging::before, .splitter:focus-visible::before { background: var(--gold-soft); }
+.splitter:hover .knob, .splitter.dragging .knob { border-color: var(--gold); }
+body.resizing { cursor: col-resize; user-select: none; }
+.main { display: grid; grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); gap: 16px; align-items: start; }
+@container (max-width: 760px) { .main { grid-template-columns: minmax(0, 1fr); } .book { order: 2; } }
+
+/* ---------- spellbook ---------- */
+.book {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  display: flex; flex-direction: column; min-width: 0; max-height: calc(100vh - 110px); position: sticky; top: max(12px, env(safe-area-inset-top, 0px));
+}
+@container (max-width: 760px) { .book { position: static; max-height: 70vh; } }
+.book-head { padding: 12px 12px 8px; display: grid; gap: 8px; border-bottom: 1px solid var(--line); }
+.book-head h2 { margin: 0; font: 400 18px var(--display); color: var(--accent); display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.book-head h2 small { font: 13px var(--body); color: var(--muted); }
+.search { width: 100%; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 6px 9px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.tab { border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 3px; padding: 2px 8px; font-size: 13px; }
+.tab[aria-selected="true"] { background: var(--panel-2); color: var(--fg); border-color: var(--accent); }
+.spells { overflow-y: auto; padding: 6px; display: grid; gap: 2px; min-height: 120px; }
+.spell {
+  display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 10px; align-items: center;
+  padding: 4px 6px; border-radius: 4px; border: 1px solid transparent; background: none; text-align: left; cursor: grab;
+}
+.spell:hover { background: var(--panel-2); border-color: var(--line); }
+.spell.held { border-color: var(--gold); background: #2a2310; }
+.spell .ico { width: 38px; height: 38px; }
+.spell .nm { font-weight: 700; line-height: 1.15; overflow-wrap: anywhere; }
+.spell .sub { font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 8px; }
+.tag { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; border-radius: 2px; padding: 0 4px; }
+.tag.talent { color: var(--green); border: 1px solid #2e6b23; }
+.tag.new { color: var(--blue); border: 1px solid #2c4f73; }
+.group-h { font: 400 14px var(--display); color: var(--gold-soft); padding: 8px 6px 2px; }
+.empty-note { color: var(--muted); padding: 14px 8px; font-size: 14px; }
+.ico {
+  display: block; border-radius: 3px; background: #000 center/cover no-repeat;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.8), 0 0 0 1px #4b4252;
+}
+.ico.blank { background: radial-gradient(circle at 50% 40%, #3a3346, #15121a); }
+
+/* custom form */
+.custom { padding: 8px 6px; display: grid; gap: 8px; border-top: 1px solid var(--line); }
+.custom label { font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
+.icon-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); gap: 4px; max-height: 150px; overflow-y: auto; padding: 2px; }
+.icon-pick button { padding: 0; border: 1px solid transparent; background: none; border-radius: 3px; aspect-ratio: 1; max-width: 100%; }
+.icon-pick button[aria-pressed="true"] { border-color: var(--gold); }
+.icon-pick .ico { width: 100%; height: 100%; }
+
+/* ---------- screen + bars ---------- */
+.stage { display: grid; gap: 16px; min-width: 0; }
+.screen {
+  container-type: inline-size;
+  position: relative; border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(110, 90, 140, .18), transparent 60%),
+    linear-gradient(180deg, #1b1922 0%, #121016 100%);
+  padding: 14px;
+}
+.area { position: relative; min-height: 560px; --slot: min(var(--slot-pref), calc((100cqi - 40px) / 12)); }
+.status { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-height: 26px; margin-bottom: 8px; }
+.pill { font-size: 13px; padding: 3px 10px; border-radius: 99px; border: 1px solid var(--line); background: rgba(0,0,0,.45); color: var(--muted); }
+.pill.hold { color: var(--gold); border-color: var(--line-gold); display: inline-flex; gap: 6px; align-items: center; }
+.pill.bind { color: #c6ffb3; border-color: #3f7a2c; }
+.bar { position: absolute; display: grid; gap: 4px; justify-items: start; }
+/* Bars stack by DOM order (the selected bar is moved last). Bars set no z-index, so their name tabs
+   and stance tabs can float above every bar's buttons and stay clickable when bars overlap. */
+.bar .pages { position: relative; z-index: 20; }
+.bar-h { position: absolute; left: -3px; bottom: calc(100% + 5px); z-index: 20; display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+/* Move bars mode: a box over each bar that can be grabbed anywhere. */
+.cover {
+  position: absolute; inset: -3px; border-radius: 5px; cursor: grab; touch-action: none;
+  background: rgba(111, 182, 255, .14); border: 1px solid rgba(111, 182, 255, .65);
+}
+.cover:hover { background: rgba(111, 182, 255, .24); }
+.bar.selected .cover { background: rgba(255, 209, 0, .16); border: 2px solid var(--gold); }
+.bar.dragging .cover { cursor: grabbing; box-shadow: 0 8px 22px rgba(0,0,0,.7); }
+.bar.selected .grip { border-color: var(--gold); background: #2b2318; color: var(--gold); }
+.pill.move { color: #cfe6ff; border-color: #2c4f73; }
+/* Alignment guides shown while dragging a bar. */
+.guide { position: absolute; z-index: 30; pointer-events: none; }
+.guide.v { width: 0; border-left: 1px dashed #6fb6ff; transform: translateX(-.5px); }
+.guide.h { height: 0; border-top: 1px dashed #6fb6ff; transform: translateY(-.5px); }
+.guide.center { top: 0; bottom: 0; width: 2px; background: var(--green); box-shadow: 0 0 8px rgba(30, 255, 0, .7); transform: translateX(-1px); }
+.grip {
+  display: inline-flex; align-items: center; gap: 5px; min-height: 22px; padding: 0 7px 0 4px; border-radius: 3px;
+  border: 1px solid var(--line); background: rgba(0,0,0,.5); color: var(--gold-soft);
+  font: 400 12.5px var(--display); cursor: grab; touch-action: none; user-select: none;
+}
+.grip:hover { border-color: var(--line-gold); }
+.grip:active, .dragging .grip { cursor: grabbing; border-color: var(--gold-soft); }
+.grip svg { width: 10px; height: 14px; fill: var(--muted); }
+.shape { background: rgba(0,0,0,.5); border: 1px solid var(--line); border-radius: 3px; font-size: 12px; padding: 1px 2px; min-height: 22px; }
+.slots { display: grid; grid-auto-rows: var(--slot); gap: 3px; isolation: isolate; }
+.slot {
+  position: relative; width: var(--slot); height: var(--slot); padding: 0; border-radius: 4px;
+  border: 1px solid #050407; background: linear-gradient(145deg, #0c0b0f, #1d1a23);
+  box-shadow: inset 0 0 0 1px #2c2733, inset 0 2px 6px rgba(0,0,0,.8);
+}
+.slot .ico { position: absolute; inset: 1px; width: auto; height: auto; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.6); }
+.slot:hover, .slot.drop { box-shadow: 0 0 0 2px var(--gold), 0 0 10px rgba(255, 209, 0, .5); z-index: 1; }
+.slot .key {
+  position: absolute; top: 1px; right: 3px; font: 700 clamp(9px, calc(var(--slot) * .26), 13px)/1 var(--body);
+  color: #fff; text-shadow: 0 0 2px #000, 1px 1px 1px #000, -1px -1px 1px #000, 1px -1px 1px #000, -1px 1px 1px #000;
+  pointer-events: none; white-space: nowrap; max-width: calc(100% - 4px); overflow: hidden;
+}
+.slot .key.empty { color: var(--muted); opacity: 0; }
+.binding .slot::after { content: ""; position: absolute; inset: 0; border-radius: 3px; background: rgba(60, 200, 70, .22); box-shadow: inset 0 0 0 1px rgba(120, 255, 120, .55); }
+.binding .slot .key.empty { opacity: .6; }
+.binding .slot.target { box-shadow: 0 0 0 2px var(--green), 0 0 12px rgba(30, 255, 0, .6); }
+.pages { display: flex; flex-wrap: wrap; gap: 4px; }
+.page {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 12px; padding: 1px 7px 1px 2px; min-height: 22px;
+  border-radius: 3px; border: 1px solid var(--line); background: rgba(0,0,0,.35); color: var(--muted);
+}
+.page .ico { width: 18px; height: 18px; }
+.page.noicon { padding-left: 7px; }
+.page[aria-selected="true"] { color: var(--fg); border-color: var(--accent); background: rgba(0,0,0,.6); }
+.hint { color: var(--muted); font-size: 13px; margin: 10px 0 0; }
+
+/* ---------- panels ---------- */
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; min-width: 0; }
+.panel h2 { margin: 0 0 8px; font: 400 18px var(--display); color: var(--accent); }
+.row { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; }
+.bar-rows { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 18px; }
+.bar-name { background: none; border: 0; padding: 0; color: var(--fg); text-decoration: underline dotted var(--muted); text-underline-offset: 3px; }
+.bar-name:hover { color: var(--gold); }
+.bar-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px solid #26212b; }
+.kb-wrap { overflow-x: auto; }
+table.kb { border-collapse: collapse; width: 100%; font-size: 14px; }
+.kb th { text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; padding: 4px 8px; border-bottom: 1px solid var(--line); }
+.kb td { padding: 4px 8px; border-bottom: 1px solid #26212b; vertical-align: middle; }
+.kb td.k { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kbd { display: inline-block; min-width: 26px; text-align: center; padding: 1px 6px; border-radius: 3px; border: 1px solid #4b4252; border-bottom-width: 2px; background: #0e0c11; font-size: 13px; font-weight: 700; }
+.kb .sp { display: flex; align-items: center; gap: 8px; }
+.kb .sp .ico { width: 22px; height: 22px; flex: none; }
+.kb .where { color: var(--muted); font-size: 13px; }
+.credit { color: var(--muted); font-size: 12.5px; margin-top: 18px; }
+.credit a { color: var(--gold-soft); }
+
+/* ---------- view tabs ---------- */
+.views { display: flex; gap: 4px; margin-bottom: 14px; border-bottom: 1px solid var(--line); }
+.view-tab {
+  display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px 8px; margin-bottom: -1px;
+  border: 1px solid transparent; border-bottom: 0; border-radius: 6px 6px 0 0; background: none; color: var(--muted);
+  font: 400 16px var(--display);
+}
+.view-tab .ico { width: 20px; height: 20px; }
+.view-tab:hover { color: var(--fg); }
+.view-tab[aria-selected="true"] { background: var(--panel); border-color: var(--line); color: var(--accent); }
+
+/* ---------- talents ---------- */
+.tal-sum { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; margin-bottom: 14px; }
+.tal-sum .big { font: 400 22px var(--display); color: var(--gold-soft); font-variant-numeric: tabular-nums; }
+.tal-sum .stat { display: grid; gap: 0; }
+.tal-sum .stat span { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.tal-sum .stat b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.tal-sum .grow { flex: 1; }
+.trees { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 14px; }
+.tree {
+  background: linear-gradient(180deg, rgba(0,0,0,.25), rgba(0,0,0,0) 40%), var(--panel);
+  border: 1px solid var(--line); border-radius: 8px; padding: 12px; min-width: 0;
+}
+.tree-h { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.tree-h .ico { width: 32px; height: 32px; }
+.tree-h h3 { margin: 0; font: 400 18px var(--display); color: var(--fg); flex: 1; }
+.tree-h .pts { font-variant-numeric: tabular-nums; color: var(--gold-soft); font-weight: 700; }
+.tree-h .btn { padding: 2px 8px; font-size: 12px; }
+.tgrid-wrap { display: flex; justify-content: center; }
+.tgrid { position: relative; display: grid; grid-template-columns: repeat(4, 44px); grid-auto-rows: 44px; column-gap: 20px; row-gap: 14px; }
+.tgrid svg.arrows { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.tal { position: relative; width: 44px; height: 44px; padding: 0; border-radius: 5px; border: 2px solid #3d3644; background: #000; }
+.tal .ico { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 3px; box-shadow: none; }
+.tal.locked .ico { filter: grayscale(1) brightness(.45); }
+.tal.open { border-color: var(--green); box-shadow: 0 0 6px rgba(30, 255, 0, .35); }
+.tal.maxed { border-color: var(--gold); box-shadow: 0 0 8px rgba(255, 209, 0, .45); }
+.tal .rk {
+  position: absolute; right: -8px; bottom: -8px; min-width: 26px; padding: 0 3px; border-radius: 3px;
+  background: #0b0a0e; border: 1px solid #4b4252; font: 700 11px/15px var(--body); color: var(--muted); text-align: center; font-variant-numeric: tabular-nums;
+}
+.tal.open .rk { color: var(--green); }
+.tal.maxed .rk { color: var(--gold); }
+.tal:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.tip .r { color: #ff4040; }
+.tag.talent.got { color: #0b0a0e; background: var(--green); border-color: var(--green); }
+
+/* ---------- tooltip ---------- */
+.tip {
+  position: fixed; z-index: 50; pointer-events: none; max-width: 320px; padding: 8px 10px;
+  background: rgba(8, 8, 26, .95); border: 1px solid #9a9aa8; border-radius: 4px; box-shadow: 0 0 0 1px #000, 0 6px 20px rgba(0,0,0,.6);
+  font-size: 13.5px; line-height: 1.35; color: #fff;
+}
+.tip .t1 { display: flex; justify-content: space-between; gap: 12px; }
+.tip .t1 b { font-size: 15px; }
+.tip .t1 span { color: #b0b0b0; }
+.tip .ml { color: #fff; }
+.tip .d { color: var(--gold); margin-top: 3px; }
+.tip .g { color: var(--green); }
+.tip .b { color: var(--blue); }
+.tip .mu { color: #a0a0a0; font-size: 12.5px; }
+.ghost-drag { position: fixed; left: -200px; top: -200px; width: 40px; height: 40px; }
+
+/* ---------- dialog ---------- */
+dialog { background: var(--panel); color: var(--fg); border: 1px solid var(--line-gold); border-radius: 8px; width: min(640px, calc(100vw - 32px)); padding: 16px; }
+dialog::backdrop { background: rgba(0,0,0,.6); }
+dialog h2 { margin: 0 0 6px; font: 400 20px var(--display); color: var(--gold-soft); }
+dialog textarea { width: 100%; min-height: 120px; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 8px; font: 12px/1.4 ui-monospace, Consolas, monospace; resize: vertical; }
+dialog .row { margin-top: 8px; }
+.msg { font-size: 13px; color: var(--muted); }
+.msg.err { color: var(--danger); }
+.msg.ok { color: #9be27f; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<header class="top">
+  <div class="brand"><h1>Forever Action Bars</h1><span>WoW: Forever keybind planner</span></div>
+  <div class="classes" id="classes" role="group" aria-label="Class"></div>
+  <div class="toolbar">
+    <select class="sel" id="layoutSel" aria-label="Saved layout"></select>
+    <button class="btn ghost" id="newLayout" type="button">New</button>
+    <button class="btn ghost" id="dupLayout" type="button">Duplicate</button>
+    <button class="btn ghost" id="delLayout" type="button">Delete</button>
+    <button class="btn" id="moveBtn" type="button" aria-pressed="false">Move bars</button>
+    <button class="btn" id="bindBtn" type="button" aria-pressed="false">Keybind mode</button>
+    <button class="btn" id="shareBtn" type="button">Export / Import</button>
+  </div>
+</header>
+
+<nav class="views" role="tablist" aria-label="View" id="views"></nav>
+
+<div class="workspace" id="workspace">
+<div class="pane" id="barsView">
+<div class="main">
+  <aside class="book" aria-label="Spellbook">
+    <div class="book-head">
+      <h2><span id="bookTitle">Spellbook</span><small id="bookCount"></small></h2>
+      <input class="search" id="search" type="search" placeholder="Search spells in every tab" autocomplete="off">
+      <div class="tabs" id="tabs" role="tablist"></div>
+    </div>
+    <div class="spells" id="spells"></div>
+  </aside>
+
+  <section class="stage">
+    <div class="screen" id="screen">
+      <div class="status" id="status"></div>
+      <div class="area" id="area"></div>
+    </div>
+    <p class="hint" id="hint"></p>
+
+    <div class="panel">
+      <h2>Bars</h2>
+      <div class="bar-rows" id="barToggles"></div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn ghost" id="resetPos" type="button">Reset bar positions</button>
+        <label class="chk" for="sizeSel">Button size
+          <select class="sel" id="sizeSel">
+            <option value="38">Small</option>
+            <option value="46">Medium</option>
+            <option value="56">Large</option>
+          </select>
+        </label>
+        <button class="btn ghost" id="clearBinds" type="button">Reset keybinds to default</button>
+        <button class="btn ghost" id="clearBars" type="button">Clear all bars</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Keybind list</h2>
+      <div class="kb-wrap"><table class="kb" id="kbTable"></table></div>
+    </div>
+
+    <p class="credit">Spellbooks, talents, racials and tooltips from the WoW: Forever beta client via <a href="https://talentsforever.com" target="_blank" rel="noopener">talentsforever.com</a> (CC BY 4.0), data dated <span id="dataDate"></span>. Spell names, icons and tooltip text belong to Blizzard Entertainment. Fan-made, not affiliated with Blizzard.</p>
+  </section>
+</div>
+</div>
+<div class="splitter" id="splitter" role="separator" aria-orientation="vertical" aria-label="Resize action bars and talents" tabindex="0" aria-valuemin="30" aria-valuemax="75"><span class="knob"></span></div>
+<section class="pane" id="talentView" hidden></section>
+</div>
+
+<div class="tip" id="tip" hidden></div>
+
+<dialog id="shareDlg">
+  <h2>Export / Import</h2>
+  <p class="msg">Copy this text to back up the current layout or send it to a friend. Paste someone else's text below to load it as a new layout.</p>
+  <textarea id="exportTxt" readonly aria-label="Exported layout"></textarea>
+  <div class="row"><button class="btn" id="copyBtn" type="button">Copy</button><span class="msg" id="copyMsg"></span></div>
+  <textarea id="importTxt" placeholder="Paste a layout here" aria-label="Layout to import" style="margin-top:12px"></textarea>
+  <div class="row">
+    <button class="btn" id="importBtn" type="button">Import as new layout</button>
+    <button class="btn ghost" id="closeDlg" type="button">Close</button>
+    <span class="msg" id="importMsg"></span>
+  </div>
+</dialog>
+
+<script src="spell-data.js"></script>
+<script src="spell-icons.js"></script>
+<script>
+(() => {
+const D = window.WF_DATA, ICONS = window.WF_ICONS || {};
+const CLASSES = Object.keys(D.classes);
+const CLASS_COLOR = { Warrior:'#c69b6d', Paladin:'#f48cba', Hunter:'#aad372', Rogue:'#fff468', Priest:'#e8e8e8', Shaman:'#3a9bff', Mage:'#3fc7eb', Warlock:'#8788ee', Druid:'#ff7c0a' };
+// Main bar paging, as the game swaps Action Bar 1 by stance/form.
+const PAGES = {
+  Warrior: ['Battle Stance','Defensive Stance','Berserker Stance'],
+  Druid: ['Caster','Bear Form','Cat Form','Prowl','Moonkin Form'],
+  Rogue: ['Normal','Stealth'],
+  Priest: ['Normal','Shadowform'],
+};
+const BARS = [
+  { name:'Action Bar 1', short:'Bar 1', rows:1, show:true },
+  { name:'Bottom Left', short:'Bottom Left', rows:1, show:true },
+  { name:'Bottom Right', short:'Bottom Right', rows:1, show:true },
+  { name:'Right Bar', short:'R', rows:12, show:true },
+  { name:'Right Bar 2', short:'R2', rows:12, show:true },
+  { name:'Action Bar 6', short:'Bar 6', rows:1, show:true },
+  { name:'Action Bar 7', short:'Bar 7', rows:1, show:true },
+];
+const SHAPES = [1, 2, 3, 4, 6, 12];   // rows; buttons per row = 12 / rows
+const shapeLabel = r => r === 1 ? '1 row of 12' : r === 12 ? '12 rows of 1 (vertical)' : `${r} rows of ${12 / r}`;
+const DEFAULT_KEYS = ['1','2','3','4','5','6','7','8','9','0','-','='];
+const STORE_KEY = 'wf-actionbars-v1';
+const $ = id => document.getElementById(id);
+
+// ---------- spell index ----------
+const index = {};   // class -> name -> spell
+for (const c of CLASSES) {
+  index[c] = {};
+  for (const tab of D.classes[c].tabs) for (const s of tab.spells) { s.tab = tab.name; index[c][s.n] = s; }
+}
+const racialsFor = c => D.racials.filter(r => r.classes.includes(c));
+for (const r of D.racials) for (const a of r.abilities) { a.race = r.race; a.racial = 1; }
+
+function iconUrl(i) {
+  if (!i) return '';
+  if (i.startsWith('data:')) return i;
+  return ICONS[i] || '';
+}
+function icoEl(i, cls = '') {
+  const el = document.createElement('span');
+  const u = iconUrl(i);
+  el.className = 'ico' + (u ? '' : ' blank') + (cls ? ' ' + cls : '');
+  if (u) el.style.backgroundImage = `url("${u}")`;
+  return el;
+}
+
+// ---------- state ----------
+let state = load() || { cls:'Warrior', size:46, customs:[], layouts:{} };
+function load() { try { return JSON.parse(localStorage.getItem(STORE_KEY)); } catch { return null; } }
+function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch {} }
+
+function blankLayout(c) {
+  const slots = {};
+  BARS.forEach((b, bi) => {
+    const pages = bi === 0 ? (PAGES[c] || ['']) : [''];
+    pages.forEach(p => slots[bi + '|' + p] = Array(12).fill(null));
+  });
+  const binds = {};
+  DEFAULT_KEYS.forEach((k, i) => binds[k] = '0:' + i);
+  return { slots, binds, page: (PAGES[c] || [''])[0], show: BARS.map(b => b.show), shape: BARS.map(b => b.rows), pos: {} };
+}
+function shapeOf(bi) { const lay = L(); if (!lay.shape) lay.shape = BARS.map(b => b.rows); return lay.shape[bi] || BARS[bi].rows; }
+function setShape(bi, rows) { L().shape[bi] = rows; save(); renderBars(); renderToggles(); }
+function posMap() { const lay = L(); if (!lay.pos) lay.pos = {}; return lay.pos; }
+function sampleLayout(c) {
+  // A starter layout so the bars aren't empty on first open; clearly just a suggestion.
+  const L = blankLayout(c);
+  const book = D.classes[c].tabs.filter(t => t.name !== 'General' && t.name !== 'Pets' && t.name !== 'Demons');
+  const picks = [];
+  for (const t of book) for (const s of t.spells) if (!s.t && picks.length < 18) picks.push(s);
+  const p0 = L.page;
+  picks.slice(0, 12).forEach((s, i) => L.slots['0|' + p0][i] = ref(s));
+  picks.slice(12, 18).forEach((s, i) => L.slots['1|'][i] = ref(s));
+  ['SHIFT-1','SHIFT-2','SHIFT-3','SHIFT-4','SHIFT-5','SHIFT-6'].forEach((k, i) => L.binds[k] = '1:' + i);
+  ['Q','E','R','F'].forEach((k, i) => L.binds[k] = '2:' + i);
+  return L;
+}
+function ref(s) { return s.racial ? { n:s.n, i:s.i, src:'racial' } : s.custom ? { n:s.n, i:s.i, src:'custom' } : { n:s.n, i:s.i }; }
+
+function layouts() {
+  const c = state.cls;
+  if (!state.layouts[c]) state.layouts[c] = { active:'Starter', list:{ Starter: sampleLayout(c) } };
+  return state.layouts[c];
+}
+function L() { const ls = layouts(); return upgrade(ls.list[ls.active]); }
+// Layouts saved before bars were added get the new bars, switched on, without touching anything else.
+function upgrade(lay) {
+  if (!lay.show) lay.show = [];
+  if (!lay.shape) lay.shape = [];
+  BARS.forEach((b, bi) => { if (lay.show[bi] === undefined) lay.show[bi] = b.show; if (!lay.shape[bi]) lay.shape[bi] = b.rows; });
+  if (Array.isArray(lay.order)) BARS.forEach((_, bi) => { if (!lay.order.includes(bi)) lay.order.unshift(bi); });
+  return lay;
+}
+function slotsOf(bi) { const lay = L(); const key = bi + '|' + (bi === 0 ? lay.page : ''); if (!lay.slots[key]) lay.slots[key] = Array(12).fill(null); return lay.slots[key]; }
+function keyFor(bi, si) { const b = L().binds; for (const k in b) if (b[k] === bi + ':' + si) return k; return null; }
+
+// ---------- UI state ----------
+let tab = null, query = '', held = null, binding = false, moving = false, bindTarget = null, hoverSlot = null, delArmed = false;
+
+// ---------- key names ----------
+const CODE_NAMES = { Backquote:'`', Minus:'-', Equal:'=', BracketLeft:'[', BracketRight:']', Backslash:'\\', Semicolon:';', Quote:"'", Comma:',', Period:'.', Slash:'/', Space:'SPACE', Tab:'TAB', Enter:'ENTER', ArrowUp:'UP', ArrowDown:'DOWN', ArrowLeft:'LEFT', ArrowRight:'RIGHT', Insert:'INSERT', Delete:'DELETE', Home:'HOME', End:'END', PageUp:'PAGEUP', PageDown:'PAGEDOWN', CapsLock:'CAPSLOCK',
+  NumpadAdd:'NUMPADPLUS', NumpadSubtract:'NUMPADMINUS', NumpadMultiply:'NUMPADMULTIPLY', NumpadDivide:'NUMPADDIVIDE', NumpadDecimal:'NUMPADDECIMAL', NumpadEnter:'ENTER' };
+function codeName(code) {
+  if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+  if (/^Digit\d$/.test(code)) return code.slice(5);
+  if (/^Numpad\d$/.test(code)) return 'NUMPAD' + code.slice(6);
+  if (/^F\d{1,2}$/.test(code)) return code;
+  return CODE_NAMES[code] || null;
+}
+function withMods(e, k) { return (e.altKey ? 'ALT-' : '') + (e.ctrlKey ? 'CTRL-' : '') + (e.shiftKey ? 'SHIFT-' : '') + k; }
+const SHORT = { BUTTON3:'M3', BUTTON4:'M4', BUTTON5:'M5', MOUSEWHEELUP:'MwU', MOUSEWHEELDOWN:'MwD', SPACE:'Spc', PAGEUP:'PgU', PAGEDOWN:'PgD', INSERT:'Ins', DELETE:'Del', HOME:'Hm', END:'End', CAPSLOCK:'Cap', ENTER:'Ent', TAB:'Tab', UP:'Up', DOWN:'Dn', LEFT:'Lt', RIGHT:'Rt',
+  NUMPADPLUS:'N+', NUMPADMINUS:'N-', NUMPADMULTIPLY:'N*', NUMPADDIVIDE:'N/', NUMPADDECIMAL:'N.' };
+function shortKey(k) {
+  if (!k) return '';
+  const parts = k.split('-'); let base = parts.pop(); if (base === '' ) base = '-';
+  if (k.endsWith('--')) { parts.pop(); }
+  let pre = '';
+  if (parts.includes('ALT')) pre += 'a'; if (parts.includes('CTRL')) pre += 'c'; if (parts.includes('SHIFT')) pre += 's';
+  base = SHORT[base] || base.replace(/^NUMPAD/, 'N');
+  return pre ? pre.toUpperCase() + base : base;
+}
+function prettyKey(k) { return k.replace('BUTTON3', 'Mouse 3').replace('BUTTON4', 'Mouse 4').replace('BUTTON5', 'Mouse 5').replace('MOUSEWHEELUP', 'Wheel up').replace('MOUSEWHEELDOWN', 'Wheel down').replace(/-(?!$)/g, ' + ').replace(/ \+ $/, ''); }
+
+function bindKey(k) {
+  if (!bindTarget) return;
+  const lay = L(); const tgt = bindTarget.bi + ':' + bindTarget.si;
+  for (const x in lay.binds) if (lay.binds[x] === tgt) delete lay.binds[x];   // one key per button, like the game
+  lay.binds[k] = tgt;                                                          // a key moves off any other button
+  save(); renderBars(); renderKb();
+  status(`Bound ${prettyKey(k)} to ${BARS[bindTarget.bi].name} button ${bindTarget.si + 1}`);
+}
+function unbindTarget() {
+  if (!bindTarget) return;
+  const lay = L(); const tgt = bindTarget.bi + ':' + bindTarget.si;
+  for (const x in lay.binds) if (lay.binds[x] === tgt) delete lay.binds[x];
+  save(); renderBars(); renderKb();
+}
+
+// ---------- render: classes ----------
+function renderClasses() {
+  const wrap = $('classes'); wrap.innerHTML = '';
+  for (const c of CLASSES) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'cls-btn'; b.title = c; b.setAttribute('aria-label', c);
+    b.setAttribute('aria-pressed', c === state.cls);
+    const u = iconUrl(D.classes[c].icon); if (u) b.style.backgroundImage = `url("${u}")`;
+    b.onclick = () => { state.cls = c; tab = null; held = null; save(); renderAll(); };
+    wrap.appendChild(b);
+  }
+  document.documentElement.style.setProperty('--accent', CLASS_COLOR[state.cls]);
+}
+
+function renderLayouts() {
+  const ls = layouts(), sel = $('layoutSel'); sel.innerHTML = '';
+  for (const n of Object.keys(ls.list)) { const o = document.createElement('option'); o.value = n; o.textContent = n; o.selected = n === ls.active; sel.appendChild(o); }
+  delArmed = false; $('delLayout').textContent = 'Delete'; $('delLayout').className = 'btn ghost';
+}
+
+// ---------- render: spellbook ----------
+function bookTabs() {
+  const t = D.classes[state.cls].tabs.map(x => x.name);
+  return [...t, 'Racials', 'Custom'];
+}
+function renderTabs() {
+  const wrap = $('tabs'); wrap.innerHTML = '';
+  const tabs = bookTabs(); if (!tab || !tabs.includes(tab)) tab = tabs[1] || tabs[0];
+  for (const t of tabs) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'tab'; b.textContent = t; b.setAttribute('role', 'tab');
+    b.setAttribute('aria-selected', !query && t === tab);
+    b.onclick = () => { tab = t; query = ''; $('search').value = ''; renderTabs(); renderSpells(); };
+    wrap.appendChild(b);
+  }
+  $('bookTitle').textContent = state.cls + ' spellbook';
+}
+function spellRow(s) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'spell' + (held && held.n === s.n ? ' held' : ''); b.draggable = true;
+  b.appendChild(icoEl(s.i));
+  const txt = document.createElement('span');
+  const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = s.n; txt.appendChild(nm);
+  const sub = document.createElement('span'); sub.className = 'sub';
+  const bits = [];
+  if (s.r) bits.push(`Rank ${s.r}`);
+  if (s.lv) bits.push(`Lv ${s.lv[0]}–${s.lv[s.lv.length - 1]}`);
+  else if (s.lvl) bits.push(s.lvl.replace('Learned at level ', 'Lv '));
+  if (s.racial) bits.push(s.race);
+  if (s.custom) bits.push('Custom');
+  if (bits.length) { const x = document.createElement('span'); x.textContent = bits.join(' · '); sub.appendChild(x); }
+  if (s.t) {
+    const got = talentTaken(s.n), x = document.createElement('span');
+    x.className = 'tag talent' + (got ? ' got' : ''); x.textContent = got ? 'Talent ✓' : 'Talent';
+    x.title = got ? 'Learned in your talent build' : 'Not in your talent build yet';
+    sub.appendChild(x);
+  }
+  if (s.new) { const x = document.createElement('span'); x.className = 'tag new'; x.textContent = 'New'; sub.appendChild(x); }
+  if (query && s.tab) { const x = document.createElement('span'); x.textContent = s.tab; sub.appendChild(x); }
+  txt.appendChild(sub); b.appendChild(txt);
+  b.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', JSON.stringify({ spell: ref(s) })); e.dataTransfer.effectAllowed = 'copy'; setDragImage(e, s.i); hideTip(); });
+  b.onclick = () => { held = (held && held.n === s.n) ? null : ref(s); renderSpells(); renderStatus(); };
+  tipOn(b, () => s);
+  return b;
+}
+function renderSpells() {
+  const wrap = $('spells'); wrap.innerHTML = '';
+  const c = state.cls; let list = [], count = 0;
+  const q = query.trim().toLowerCase();
+  const tabsAll = D.classes[c].tabs;
+  if (q) {
+    for (const t of tabsAll) for (const s of t.spells) if (s.n.toLowerCase().includes(q)) list.push(s);
+    for (const r of racialsFor(c)) for (const a of r.abilities) if (a.n.toLowerCase().includes(q)) list.push(a);
+    for (const cu of state.customs) if (cu.n.toLowerCase().includes(q)) list.push(cu);
+    list.forEach(s => wrap.appendChild(spellRow(s))); count = list.length;
+    if (!count) wrap.innerHTML = `<p class="empty-note">No ${c} spell matches “${escapeHtml(query)}”. Try the Custom tab to add one by hand.</p>`;
+  } else if (tab === 'Racials') {
+    for (const r of racialsFor(c)) {
+      const h = document.createElement('div'); h.className = 'group-h'; h.textContent = `${r.race} · ${r.faction}`; wrap.appendChild(h);
+      r.abilities.forEach(a => { wrap.appendChild(spellRow(a)); count++; });
+    }
+  } else if (tab === 'Custom') {
+    state.customs.forEach(cu => wrap.appendChild(spellRow(cu)));
+    count = state.customs.length;
+    if (!count) { const p = document.createElement('p'); p.className = 'empty-note'; p.textContent = 'Add macros, items, mounts or anything else you put on your bars. Pick an icon or upload your own.'; wrap.appendChild(p); }
+    wrap.appendChild(customForm());
+  } else {
+    const t = tabsAll.find(x => x.name === tab);
+    if (t) { t.spells.forEach(s => wrap.appendChild(spellRow(s))); count = t.spells.length; }
+  }
+  $('bookCount').textContent = count ? `${count} ${count === 1 ? 'entry' : 'entries'}` : '';
+}
+function escapeHtml(s) { return s.replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch])); }
+
+let customIcon = 'inv_misc_note_01', iconQuery = '';
+function customForm() {
+  const f = document.createElement('form'); f.className = 'custom';
+  f.innerHTML = `
+    <label for="cuName">Name<input class="search" id="cuName" maxlength="40" placeholder="e.g. Mount macro" required></label>
+    <label for="cuIconSearch">Icon<input class="search" id="cuIconSearch" placeholder="Filter icons (e.g. potion, mount, sword)" value="${escapeHtml(iconQuery)}"></label>
+    <div class="icon-pick" id="iconPick"></div>
+    <label for="cuUpload">Or upload an image<input id="cuUpload" type="file" accept="image/*"></label>
+    <div class="row"><button class="btn" type="submit">Add to Custom</button></div>`;
+  const pick = f.querySelector('#iconPick');
+  const drawIcons = () => {
+    pick.innerHTML = '';
+    const q = iconQuery.toLowerCase().replace(/\s+/g, '_');
+    const names = Object.keys(ICONS).filter(n => !q || n.includes(q)).slice(0, 120);
+    if (customIcon.startsWith('data:')) names.unshift(customIcon);
+    for (const n of names) {
+      const b = document.createElement('button'); b.type = 'button'; b.title = n.startsWith('data:') ? 'Uploaded image' : n;
+      b.setAttribute('aria-pressed', n === customIcon); b.appendChild(icoEl(n));
+      b.onclick = () => { customIcon = n; drawIcons(); };
+      pick.appendChild(b);
+    }
+  };
+  drawIcons();
+  f.querySelector('#cuIconSearch').addEventListener('input', e => { iconQuery = e.target.value; drawIcons(); });
+  f.querySelector('#cuUpload').addEventListener('change', e => {
+    const file = e.target.files[0]; if (!file) return;
+    const img = new Image(), rd = new FileReader();
+    rd.onload = () => { img.onload = () => {
+      const cv = document.createElement('canvas'); cv.width = cv.height = 56;
+      const ctx = cv.getContext('2d'); const s = Math.min(img.width, img.height);
+      ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 56, 56);
+      customIcon = cv.toDataURL('image/jpeg', .85); drawIcons();
+    }; img.src = rd.result; };
+    rd.readAsDataURL(file);
+  });
+  f.addEventListener('submit', e => {
+    e.preventDefault();
+    const n = f.querySelector('#cuName').value.trim(); if (!n) return;
+    state.customs.push({ n, i: customIcon, custom: 1 }); save(); renderSpells();
+  });
+  return f;
+}
+
+// ---------- render: bars ----------
+const GAP = 10, SNAP = 4, TOP = 30;   // TOP leaves room for the name tag that floats above each bar
+function renderBars() {
+  const area = $('area'); area.innerHTML = '';
+  $('screen').classList.toggle('binding', binding);
+  $('screen').classList.toggle('moving', moving);
+  document.documentElement.style.setProperty('--slot-pref', state.size + 'px');
+  const lay = L(), els = {};
+  for (const bi of barOrder()) if (lay.show[bi]) { els[bi] = barEl(bi); area.appendChild(els[bi]); }
+  placeBars(els);
+}
+// Front-to-back order of the bars, last = front. Saved with the layout.
+function barOrder() {
+  const lay = L();
+  if (!Array.isArray(lay.order) || lay.order.length !== BARS.length) lay.order = BARS.map((_, i) => i);
+  return lay.order;
+}
+let selectedBar = null;
+function selectBar(bi, moveNow) {
+  selectedBar = bi;
+  const order = barOrder();
+  if (order[order.length - 1] !== bi) { order.splice(order.indexOf(bi), 1); order.push(bi); save(); }
+  const area = $('area');
+  area.querySelectorAll('.bar').forEach(b => b.classList.toggle('selected', +b.dataset.bi === bi));
+  if (moveNow) bringForward(bi);
+}
+function bringForward(bi) {
+  const area = $('area'), el = area.querySelector(`.bar[data-bi="${bi}"]`);
+  if (el && area.lastElementChild !== el) area.appendChild(el);
+}
+// Bars without a saved spot get the in-game default: the bottom three stacked and centred, the right bars on the right edge.
+function defaultSpots(els, W) {
+  const size = bi => els[bi] ? { w: els[bi].offsetWidth, h: els[bi].offsetHeight } : { w: 0, h: 0 };
+  const spots = {};
+  const right = [3, 4].filter(bi => els[bi]);
+  let rx = W - GAP, rightW = 0;
+  for (const bi of right) { const s = size(bi); rx -= s.w; spots[bi] = { x: rx, y: TOP }; rx -= GAP; rightW += s.w + GAP; }
+  const bottom = [0, 1, 2].filter(bi => els[bi]);
+  const bottomW = Math.max(0, ...bottom.map(bi => size(bi).w));
+  const roomy = W - rightW - GAP >= bottomW;
+  const rightH = Math.max(0, ...right.map(bi => size(bi).h));
+  const stackH = bottom.reduce((t, bi) => t + size(bi).h + GAP, 0);
+  const extra = [5, 6].filter(bi => els[bi]);
+  if (roomy) {
+    let y = Math.max(560, rightH + TOP + GAP, stackH + TOP) - GAP;
+    const cx = (W - rightW) / 2;
+    for (const bi of bottom) { const s = size(bi); y -= s.h; spots[bi] = { x: Math.max(GAP, cx - s.w / 2), y }; y -= GAP; }
+    // Bars 6 and 7 start top-left, stacked, out of the way of the default bars.
+    let ey = TOP;
+    for (const bi of extra) { const s = size(bi); spots[bi] = { x: GAP, y: ey }; ey += s.h + TOP; }
+  } else {
+    // Narrow screens or a narrow side-by-side pane: the bottom bars stacked at the top, then the
+    // right bars next to each other below them, then bars 6 and 7.
+    let y = TOP;
+    for (const bi of [...bottom.reverse()]) { const s = size(bi); spots[bi] = { x: Math.max(0, (W - s.w) / 2), y }; y += s.h + TOP; }
+    if (right.length) {
+      const rw = right.reduce((t, bi) => t + size(bi).w, 0) + GAP * 2 * (right.length - 1);
+      let x = Math.max(0, (W - rw) / 2), rh = 0;
+      for (const bi of [...right].reverse()) { const s = size(bi); spots[bi] = { x, y }; x += s.w + GAP * 2; rh = Math.max(rh, s.h); }
+      y += rh + TOP;
+    }
+    for (const bi of extra) { const s = size(bi); spots[bi] = { x: Math.max(0, (W - s.w) / 2), y }; y += s.h + TOP; }
+  }
+  return spots;
+}
+function placeBars(els) {
+  const area = $('area'), W = area.clientWidth, pos = posMap();
+  const defs = defaultSpots(els, W);
+  let bottomEdge = 0;
+  for (const bi in els) {
+    const el = els[bi], p = pos[bi] || defs[bi];
+    const x = Math.min(Math.max(0, p.x), Math.max(0, W - el.offsetWidth));
+    const y = Math.max(TOP, p.y);
+    el.style.left = x + 'px'; el.style.top = y + 'px';
+    bottomEdge = Math.max(bottomEdge, y + el.offsetHeight);
+  }
+  area.style.height = Math.max(560, bottomEdge + GAP) + 'px';
+}
+function startBarDrag(e, bi, bar) {
+  if (e.button !== 0 || e.target.closest('select')) return;
+  e.preventDefault();
+  const area = $('area'), a = area.getBoundingClientRect(), r = bar.getBoundingClientRect();
+  const dx = e.clientX - r.left, dy = e.clientY - r.top;
+  const handle = e.currentTarget; handle.setPointerCapture(e.pointerId);
+  bar.classList.add('dragging'); hideTip();
+  const others = [...area.querySelectorAll('.bar')].filter(el => el !== bar)
+    .map(el => ({ x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight }));
+  const move = ev => {
+    const W = area.clientWidth, w = bar.offsetWidth, h = bar.offsetHeight;
+    let x = Math.round((ev.clientX - a.left - dx) / SNAP) * SNAP;
+    let y = Math.round((ev.clientY - a.top - dy) / SNAP) * SNAP;
+    x = Math.min(Math.max(0, x), Math.max(0, W - w)); y = Math.max(TOP, y);
+    const snapped = ev.altKey ? { x, y, guides: [] } : alignTo(x, y, w, h, W, others);
+    x = snapped.x; y = snapped.y; drawGuides(snapped.guides);
+    bar.style.left = x + 'px'; bar.style.top = y + 'px';
+    const need = y + bar.offsetHeight + GAP; if (need > area.offsetHeight) area.style.height = need + 'px';
+  };
+  const up = () => {
+    handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up); handle.removeEventListener('pointercancel', up);
+    bar.classList.remove('dragging'); drawGuides([]);
+    pinAll(); posMap()[bi] = { x: parseFloat(bar.style.left), y: parseFloat(bar.style.top) };
+    save(); renderBars();
+  };
+  handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', up); handle.addEventListener('pointercancel', up);
+}
+// Alignment while dragging: snap to the screen's centre line and to the edges and middles of the other bars.
+const ALIGN = 6;
+function alignTo(x, y, w, h, W, others) {
+  const guides = [];
+  // Horizontal: centred on the screen wins over everything else.
+  const cx = W / 2;
+  if (Math.abs(x + w / 2 - cx) <= ALIGN) { x = cx - w / 2; guides.push({ kind: 'center', x: cx }); }
+  else {
+    const best = nearest([x, x + w / 2, x + w], others.flatMap(o => [o.x, o.x + o.w / 2, o.x + o.w].map(v => ({ v, o }))));
+    if (best) {
+      x += best.shift;
+      const top = Math.min(y, best.o.y), bottom = Math.max(y + h, best.o.y + best.o.h);
+      guides.push({ kind: 'v', x: best.v, y: top, len: bottom - top });
+    }
+  }
+  const bestY = nearest([y, y + h / 2, y + h], others.flatMap(o => [o.y, o.y + o.h / 2, o.y + o.h].map(v => ({ v, o }))));
+  if (bestY && y + bestY.shift >= TOP) {
+    y += bestY.shift;
+    const left = Math.min(x, bestY.o.x), right = Math.max(x + w, bestY.o.x + bestY.o.w);
+    guides.push({ kind: 'h', y: bestY.v, x: left, len: right - left });
+  }
+  // Also show every other bar edge the dragged bar now touches exactly, not just the one it snapped to.
+  for (const o of others) {
+    for (const v of [o.x, o.x + o.w / 2, o.x + o.w]) if ([x, x + w / 2, x + w].some(e => Math.abs(e - v) < .5) && !guides.some(g => g.kind !== 'h' && Math.abs(g.x - v) < .5)) {
+      const top = Math.min(y, o.y), bottom = Math.max(y + h, o.y + o.h); guides.push({ kind: 'v', x: v, y: top, len: bottom - top });
+    }
+  }
+  return { x, y, guides };
+}
+function nearest(edges, targets) {
+  let best = null;
+  for (const e of edges) for (const t of targets) {
+    const d = t.v - e;
+    if (Math.abs(d) <= ALIGN && (!best || Math.abs(d) < Math.abs(best.shift))) best = { shift: d, v: t.v, o: t.o };
+  }
+  return best;
+}
+function drawGuides(guides) {
+  const area = $('area');
+  area.querySelectorAll('.guide').forEach(g => g.remove());
+  for (const g of guides) {
+    const el = document.createElement('div');
+    if (g.kind === 'center') { el.className = 'guide center'; el.style.left = g.x + 'px'; }
+    else if (g.kind === 'v') { el.className = 'guide v'; el.style.left = g.x + 'px'; el.style.top = (g.y - 8) + 'px'; el.style.height = (g.len + 16) + 'px'; }
+    else { el.className = 'guide h'; el.style.top = g.y + 'px'; el.style.left = (g.x - 8) + 'px'; el.style.width = (g.len + 16) + 'px'; }
+    area.appendChild(el);
+  }
+}
+// Once any bar moves, freeze the others where they are so they don't re-centre around it.
+function pinAll() {
+  const pos = posMap();
+  document.querySelectorAll('#area .bar').forEach(el => { const bi = el.dataset.bi; if (!pos[bi]) pos[bi] = { x: parseFloat(el.style.left), y: parseFloat(el.style.top) }; });
+}
+function nudgeBar(e) {
+  const step = e.shiftKey ? 1 : 8, d = { ArrowLeft:[-step, 0], ArrowRight:[step, 0], ArrowUp:[0, -step], ArrowDown:[0, step] }[e.key];
+  if (!d || selectedBar === null) return false;
+  e.preventDefault(); pinAll();
+  const p = posMap()[selectedBar]; p.x += d[0]; p.y += d[1];
+  save(); renderBars();
+  return true;
+}
+const GRIP_SVG = '<svg viewBox="0 0 10 14" aria-hidden="true"><circle cx="2.5" cy="2.5" r="1.4"/><circle cx="7.5" cy="2.5" r="1.4"/><circle cx="2.5" cy="7" r="1.4"/><circle cx="7.5" cy="7" r="1.4"/><circle cx="2.5" cy="11.5" r="1.4"/><circle cx="7.5" cy="11.5" r="1.4"/></svg>';
+function shapeSelect(bi, short) {
+  const s = document.createElement('select'); s.className = short ? 'shape' : 'sel';
+  s.setAttribute('aria-label', `${BARS[bi].name} shape`); if (!short) s.id = 'shape' + bi;
+  for (const r of SHAPES) { const o = document.createElement('option'); o.value = r; o.textContent = short ? `${r}×${12 / r}` : shapeLabel(r); o.title = shapeLabel(r); o.selected = r === shapeOf(bi); s.appendChild(o); }
+  s.onchange = () => setShape(bi, +s.value);
+  return s;
+}
+function barEl(bi) {
+  const lay = L(), bar = document.createElement('div'); bar.className = 'bar' + (selectedBar === bi ? ' selected' : ''); bar.dataset.bi = bi;
+  // In Move bars mode, pressing anywhere on a bar selects it and brings it to the front.
+  bar.addEventListener('pointerdown', () => { if (moving) selectBar(bi, true); }, true);
+  if (moving) {
+    // Name tag floats above the bar (and above every other bar), so it can always be grabbed.
+    const h = document.createElement('div'); h.className = 'bar-h';
+    const g = document.createElement('button'); g.type = 'button'; g.className = 'grip';
+    g.innerHTML = GRIP_SVG; g.appendChild(document.createTextNode(BARS[bi].short));
+    g.title = `Drag to move ${BARS[bi].name}`; g.setAttribute('aria-label', `Select ${BARS[bi].name}`);
+    g.addEventListener('pointerdown', e => startBarDrag(e, bi, bar));
+    h.append(g, shapeSelect(bi, true));
+    bar.appendChild(h);
+    // A box over the whole bar: grab it anywhere to drag.
+    const cover = document.createElement('div'); cover.className = 'cover';
+    cover.addEventListener('pointerdown', e => startBarDrag(e, bi, bar));
+    bar.appendChild(cover);
+  }
+  if (bi === 0 && PAGES[state.cls]) {
+    const pg = document.createElement('div'); pg.className = 'pages'; pg.setAttribute('role', 'tablist'); pg.setAttribute('aria-label', 'Action Bar 1 page');
+    for (const p of PAGES[state.cls]) {
+      const s = index[state.cls][p];
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'page' + (s ? '' : ' noicon'); b.setAttribute('role', 'tab');
+      b.setAttribute('aria-selected', p === lay.page);
+      if (s) b.appendChild(icoEl(s.i));
+      b.appendChild(document.createTextNode(p));
+      b.onclick = () => { lay.page = p; save(); renderBars(); renderKb(); };
+      pg.appendChild(b);
+    }
+    bar.appendChild(pg);
+  }
+  const row = document.createElement('div'); row.className = 'slots';
+  row.style.gridTemplateColumns = `repeat(${12 / shapeOf(bi)}, var(--slot))`;
+  const slots = slotsOf(bi);
+  for (let si = 0; si < 12; si++) row.appendChild(slotEl(bi, si, slots[si]));
+  bar.appendChild(row);
+  return bar;
+}
+function slotEl(bi, si, s) {
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'slot'; b.dataset.slot = bi + ':' + si;
+  if (binding && bindTarget && bindTarget.bi === bi && bindTarget.si === si) b.classList.add('target');
+  const k = keyFor(bi, si);
+  b.setAttribute('aria-label', `${BARS[bi].name} button ${si + 1}${s ? ', ' + s.n : ', empty'}${k ? ', key ' + prettyKey(k) : ''}`);
+  if (s) { b.appendChild(icoEl(s.i)); b.draggable = !binding; }
+  const kl = document.createElement('span'); kl.className = 'key' + (k ? '' : ' empty'); kl.textContent = k ? shortKey(k) : '·'; b.appendChild(kl);
+
+  b.addEventListener('mouseenter', () => { hoverSlot = { bi, si }; if (binding) { bindTarget = { bi, si }; markTarget(); } });
+  b.addEventListener('mouseleave', () => { hoverSlot = null; });
+  b.addEventListener('click', () => {
+    if (binding) { bindTarget = { bi, si }; markTarget(); return; }
+    const arr = slotsOf(bi);
+    if (held) { const prev = arr[si]; arr[si] = held; held = prev; }        // drop what you hold, pick up what was there
+    else if (arr[si]) { held = arr[si]; arr[si] = null; }                    // pick it up
+    save(); renderBars(); renderSpells(); renderStatus(); renderKb();
+  });
+  b.addEventListener('contextmenu', e => { e.preventDefault(); if (binding) { bindTarget = { bi, si }; unbindTarget(); return; } slotsOf(bi)[si] = null; save(); renderBars(); renderKb(); hideTip(); });
+  b.addEventListener('dragstart', e => { if (!s) return e.preventDefault(); droppedOnSlot = false; e.dataTransfer.setData('text/plain', JSON.stringify({ from:[bi, si] })); e.dataTransfer.effectAllowed = 'move'; setDragImage(e, s.i); hideTip(); });
+  b.addEventListener('dragend', e => { if (e.dataTransfer.dropEffect === 'none' && !droppedOnSlot) { slotsOf(bi)[si] = null; save(); renderBars(); renderKb(); } droppedOnSlot = false; });
+  b.addEventListener('dragover', e => { e.preventDefault(); b.classList.add('drop'); });
+  b.addEventListener('dragleave', () => b.classList.remove('drop'));
+  b.addEventListener('drop', e => {
+    e.preventDefault(); b.classList.remove('drop'); droppedOnSlot = true;
+    let d; try { d = JSON.parse(e.dataTransfer.getData('text/plain')); } catch { return; }
+    const arr = slotsOf(bi);
+    if (d.spell) arr[si] = d.spell;
+    else if (d.from) { const src = slotsOf(d.from[0]); const tmp = src[d.from[1]]; src[d.from[1]] = arr[si]; arr[si] = tmp; }
+    save(); renderBars(); renderKb();
+  });
+  tipOn(b, () => s ? lookup(s) : null, () => k);
+  return b;
+}
+let droppedOnSlot = false;
+function markTarget() { document.querySelectorAll('.slot.target').forEach(x => x.classList.remove('target')); renderBarsSoft(); }
+function renderBarsSoft() {
+  // Highlight without a full rebuild so hover isn't lost.
+  const t = bindTarget ? bindTarget.bi + ':' + bindTarget.si : '';
+  document.querySelectorAll('#area .slot').forEach(el => el.classList.toggle('target', el.dataset.slot === t));
+}
+function setDragImage(e, i) {
+  const g = icoEl(i, 'ghost-drag'); document.body.appendChild(g);
+  try { e.dataTransfer.setDragImage(g, 20, 20); } catch {}
+  setTimeout(() => g.remove(), 0);
+}
+
+function lookup(s) {
+  if (s.src === 'custom') return { ...s, custom: 1 };
+  if (s.src === 'racial') { for (const r of D.racials) for (const a of r.abilities) if (a.n === s.n) return a; return s; }
+  return index[state.cls][s.n] || s;
+}
+
+// ---------- status / hint ----------
+function status(msg) { lastMsg = msg; renderStatus(); clearTimeout(status.t); status.t = setTimeout(() => { lastMsg = ''; renderStatus(); }, 2500); }
+let lastMsg = '';
+function renderStatus() {
+  const w = $('status'); w.innerHTML = '';
+  if (moving) {
+    const p = document.createElement('span'); p.className = 'pill move'; p.textContent = lastMsg || 'Moving bars: drag any bar, click one to bring it to the front';
+    const done = document.createElement('button'); done.type = 'button'; done.className = 'btn'; done.style.padding = '1px 10px'; done.textContent = 'Done';
+    done.onclick = () => toggleMove(false);
+    w.append(p, done);
+  }
+  else if (binding) { const p = document.createElement('span'); p.className = 'pill bind'; p.textContent = lastMsg || 'Keybind mode: hover a button and press a key'; w.appendChild(p); }
+  else if (lastMsg) { const p = document.createElement('span'); p.className = 'pill'; p.textContent = lastMsg; w.appendChild(p); }
+  if (held) {
+    const p = document.createElement('span'); p.className = 'pill hold';
+    const i = icoEl(held.i); i.style.width = i.style.height = '18px'; p.appendChild(i);
+    p.appendChild(document.createTextNode(`Holding ${held.n}. Click a button to place it`));
+    const x = document.createElement('button'); x.type = 'button'; x.className = 'btn ghost'; x.style.padding = '0 6px'; x.textContent = 'Drop'; x.onclick = () => { held = null; renderStatus(); renderSpells(); };
+    p.appendChild(x); w.appendChild(p);
+  }
+  $('hint').textContent = moving
+    ? 'Drag a bar from anywhere on it. Clicking a bar brings it to the front; a bar hidden behind others can be picked from the Bars list below. Blue lines show when a bar lines up with another bar, and a green line shows when it is centred; bars snap to these, and holding Alt while dragging turns snapping off. Arrow keys nudge the selected bar (Shift for 1 pixel). The menu by each name changes its shape. Esc or Done when finished.'
+    : binding
+    ? 'Hover (or tap) a button, then press any key, Shift/Ctrl/Alt combo, middle mouse, mouse 4/5 or scroll wheel. Backspace or right-click clears that button. Esc leaves keybind mode.'
+    : 'Drag spells from the spellbook onto a button, or click a spell and then click a button. Drag buttons to swap them. Right-click a button, or drag it off the bars, to clear it. Use Move bars to rearrange or reshape the bars.';
+}
+
+// ---------- keybind list ----------
+function renderKb() {
+  const t = $('kbTable'), lay = L();
+  const rows = Object.entries(lay.binds).map(([k, v]) => { const [bi, si] = v.split(':').map(Number); return { k, bi, si }; })
+    .sort((a, b) => a.bi - b.bi || a.si - b.si);
+  t.innerHTML = '<thead><tr><th>Key</th><th>Ability</th><th>Button</th></tr></thead>';
+  const tb = document.createElement('tbody');
+  const pages = PAGES[state.cls];
+  for (const r of rows) {
+    const tr = document.createElement('tr');
+    const td1 = document.createElement('td'); td1.className = 'k'; const kb = document.createElement('span'); kb.className = 'kbd'; kb.textContent = prettyKey(r.k); td1.appendChild(kb);
+    const td2 = document.createElement('td');
+    const entries = (r.bi === 0 && pages) ? pages.map(p => ({ p, s: (lay.slots['0|' + p] || [])[r.si] })).filter(x => x.s) : [{ s: slotsOf(r.bi)[r.si] }].filter(x => x.s);
+    if (!entries.length) td2.innerHTML = '<span class="where">Empty</span>';
+    for (const x of entries) {
+      const d = document.createElement('div'); d.className = 'sp'; d.appendChild(icoEl(x.s.i));
+      d.appendChild(document.createTextNode(x.s.n));
+      if (x.p) { const w = document.createElement('span'); w.className = 'where'; w.textContent = x.p; d.appendChild(w); }
+      td2.appendChild(d);
+    }
+    const td3 = document.createElement('td'); td3.className = 'where'; td3.textContent = `${BARS[r.bi].name} · ${r.si + 1}`;
+    tr.append(td1, td2, td3); tb.appendChild(tr);
+  }
+  if (!rows.length) tb.innerHTML = '<tr><td colspan="3" class="where">No keybinds yet. Turn on Keybind mode to add some.</td></tr>';
+  t.appendChild(tb);
+}
+
+function renderToggles() {
+  const w = $('barToggles'), lay = L(); w.innerHTML = '';
+  BARS.forEach((b, bi) => {
+    const id = 'show' + bi, row = document.createElement('div'); row.className = 'bar-row';
+    const l = document.createElement('label'); l.className = 'chk'; l.htmlFor = id;
+    const c = document.createElement('input'); c.type = 'checkbox'; c.id = id; c.checked = lay.show[bi]; c.setAttribute('aria-label', `Show ${b.name}`); c.title = `Show ${b.name}`;
+    c.onchange = () => { lay.show[bi] = c.checked; save(); renderBars(); };
+    const nm = document.createElement('button'); nm.type = 'button'; nm.className = 'bar-name'; nm.textContent = b.name;
+    nm.title = `Select ${b.name} and bring it to the front`;
+    nm.onclick = () => { if (!lay.show[bi]) { lay.show[bi] = true; c.checked = true; save(); } if (!moving) toggleMove(true); else renderBars(); selectBar(bi, true); $('screen').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); };
+    l.append(c);
+    const left = document.createElement('span'); left.className = 'chk'; left.append(l, nm);
+    row.append(left, shapeSelect(bi, false)); w.appendChild(row);
+  });
+  $('sizeSel').value = String(state.size);
+}
+
+// ---------- views ----------
+// Side by side needs a wide window; on a narrow one it falls back to the bars (and comes back when widened).
+const SPLIT_MIN = 1100;
+const canSplit = () => innerWidth >= SPLIT_MIN;
+function effView() { const v = state.view || 'bars'; return v === 'split' && !canSplit() ? 'bars' : v; }
+function renderViews() {
+  const nav = $('views'); nav.innerHTML = '';
+  const view = effView();
+  const tabs = [['bars', 'Action Bars', null], ['talents', `${state.cls} Talents`, D.classes[state.cls].icon]];
+  if (canSplit()) tabs.push(['split', 'Side by side', null]);
+  for (const [id, label, icon] of tabs) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'view-tab'; b.setAttribute('role', 'tab');
+    b.setAttribute('aria-selected', id === view);
+    if (icon) b.appendChild(icoEl(icon));
+    b.appendChild(document.createTextNode(label));
+    if (id === 'split') b.title = 'Action bars on the left, talents on the right. Drag the divider to resize.';
+    b.onclick = () => { state.view = id; save(); if (id === 'talents') { if (moving) toggleMove(false); if (binding) toggleBind(false); } renderViews(); renderSpells(); };
+    nav.appendChild(b);
+  }
+  const split = view === 'split', ws = $('workspace');
+  ws.classList.toggle('split', split);
+  applySplit();
+  $('barsView').hidden = !(view === 'bars' || split);
+  $('talentView').hidden = !(view === 'talents' || split);
+  if (!$('talentView').hidden) renderTalents();
+  if (!$('barsView').hidden) renderBars();
+}
+function applySplit() {
+  const pct = Math.min(75, Math.max(30, state.split || 58));
+  const ws = $('workspace');
+  ws.style.setProperty('--left', pct + 'fr'); ws.style.setProperty('--right', (100 - pct) + 'fr');
+  const sp = $('splitter'); sp.setAttribute('aria-valuenow', Math.round(pct));
+}
+(() => {
+  const sp = $('splitter');
+  sp.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    e.preventDefault(); sp.setPointerCapture(e.pointerId); sp.classList.add('dragging'); document.body.classList.add('resizing'); hideTip();
+    const move = ev => {
+      const r = $('workspace').getBoundingClientRect();
+      state.split = Math.min(75, Math.max(30, (ev.clientX - r.left) / r.width * 100));
+      applySplit();
+    };
+    const up = () => {
+      sp.removeEventListener('pointermove', move); sp.removeEventListener('pointerup', up); sp.removeEventListener('pointercancel', up);
+      sp.classList.remove('dragging'); document.body.classList.remove('resizing'); save();
+    };
+    sp.addEventListener('pointermove', move); sp.addEventListener('pointerup', up); sp.addEventListener('pointercancel', up);
+  });
+  sp.addEventListener('keydown', e => {
+    const d = { ArrowLeft: -2, ArrowRight: 2 }[e.key]; if (!d) return;
+    e.preventDefault(); e.stopPropagation();
+    state.split = Math.min(75, Math.max(30, (state.split || 58) + d)); applySplit(); save();
+  });
+  sp.addEventListener('dblclick', () => { state.split = 58; applySplit(); save(); });
+})();
+
+// ---------- talents ----------
+// WoW: Forever rules: 51 points at level 60 (one per level from 10); each row opens after 5 more points in that tree;
+// an arrow means the talent it comes from must be maxed first.
+const MAX_POINTS = 51;
+const trees = () => D.classes[state.cls].trees;
+function build() { const lay = L(); if (!lay.talents) lay.talents = {}; return lay.talents; }
+const tk = (ti, n) => ti + ':' + n;
+const rankOf = (ti, n) => build()[tk(ti, n)] || 0;
+const treePts = ti => trees()[ti].talents.reduce((s, t) => s + rankOf(ti, t.n), 0);
+const totalPts = () => trees().reduce((s, _, ti) => s + treePts(ti), 0);
+const findTal = (ti, n) => trees()[ti].talents.find(t => t.n === n);
+function reqMet(ti, t) { if (!t.req) return true; const q = findTal(ti, t.req); return !q || rankOf(ti, q.n) >= q.max; }
+function rowOpen(ti, t) { return treePts(ti) >= (t.r - 1) * 5; }
+function canAdd(ti, t) { return rankOf(ti, t.n) < t.max && totalPts() < MAX_POINTS && rowOpen(ti, t) && reqMet(ti, t); }
+function canRemove(ti, t) {
+  if (!rankOf(ti, t.n)) return false;
+  const list = trees()[ti].talents;
+  if (list.some(u => u.req === t.n && rankOf(ti, u.n) > 0)) return false;
+  // Every talent still holding points must keep enough points in the rows above it.
+  for (const u of list) {
+    if (u.r <= t.r || !rankOf(ti, u.n)) continue;
+    const below = list.filter(v => v.r < u.r).reduce((s, v) => s + rankOf(ti, v.n), 0) - 1;
+    if (below < (u.r - 1) * 5) return false;
+  }
+  return true;
+}
+function changeTal(ti, t, delta) {
+  if (delta > 0 ? !canAdd(ti, t) : !canRemove(ti, t)) return false;
+  const b = build(), k = tk(ti, t.n);
+  b[k] = rankOf(ti, t.n) + delta; if (!b[k]) delete b[k];
+  save();
+  if (!$('barsView').hidden) renderSpells();   // side by side: keep the spellbook's Talent ✓ marks in step
+  return true;
+}
+function talentTaken(n) { return trees().some((tr, ti) => tr.talents.some(t => t.n === n && rankOf(ti, n) > 0)); }
+
+const CELL = 44, COLGAP = 20, ROWGAP = 14;
+function renderTalents() {
+  const wrap = $('talentView'); const scroll = scrollY; wrap.innerHTML = '';
+  const total = totalPts(), split = trees().map((_, ti) => treePts(ti));
+  const sum = document.createElement('div'); sum.className = 'panel tal-sum';
+  sum.innerHTML = `
+    <div class="stat"><span>Points spent</span><b class="big">${total} / ${MAX_POINTS}</b></div>
+    <div class="stat"><span>Points left</span><b>${MAX_POINTS - total}</b></div>
+    <div class="stat"><span>Level needed</span><b>${total ? total + 9 : '–'}</b></div>
+    <div class="stat"><span>Build</span><b>${split.join(' / ')}</b></div>
+    <div class="grow msg">Left-click adds a point. Right-click or Shift-click removes one. Saved with the layout “${escapeHtml(layouts().active)}”.</div>`;
+  const reset = document.createElement('button'); reset.type = 'button'; reset.className = 'btn ghost'; reset.textContent = 'Reset all talents';
+  reset.onclick = () => { L().talents = {}; save(); renderTalents(); };
+  sum.appendChild(reset); wrap.appendChild(sum);
+
+  const grid = document.createElement('div'); grid.className = 'trees';
+  trees().forEach((tr, ti) => grid.appendChild(treeEl(tr, ti)));
+  wrap.appendChild(grid);
+  const cr = document.createElement('p'); cr.className = 'credit';
+  cr.innerHTML = 'Talent trees and rank text from the WoW: Forever beta client via <a href="https://talentsforever.com" target="_blank" rel="noopener">talentsforever.com</a> (CC BY 4.0). Numbers can change with live tuning.';
+  wrap.appendChild(cr);
+  scrollTo(0, scroll);
+}
+function treeEl(tr, ti) {
+  const box = document.createElement('section'); box.className = 'tree'; box.setAttribute('aria-label', `${tr.name} tree`);
+  const h = document.createElement('div'); h.className = 'tree-h';
+  h.appendChild(icoEl(tr.icon));
+  const t = document.createElement('h3'); t.textContent = tr.name; h.appendChild(t);
+  const pts = document.createElement('span'); pts.className = 'pts'; pts.textContent = treePts(ti); pts.title = 'Points in this tree'; h.appendChild(pts);
+  const rs = document.createElement('button'); rs.type = 'button'; rs.className = 'btn ghost'; rs.textContent = 'Reset';
+  rs.setAttribute('aria-label', `Reset ${tr.name}`);
+  rs.onclick = () => { const b = build(); for (const k in b) if (k.startsWith(ti + ':')) delete b[k]; save(); renderTalents(); };
+  h.appendChild(rs); box.appendChild(h);
+
+  const gw = document.createElement('div'); gw.className = 'tgrid-wrap';
+  const g = document.createElement('div'); g.className = 'tgrid';
+  const rows = Math.max(...tr.talents.map(x => x.r));
+  g.style.gridTemplateRows = `repeat(${rows}, ${CELL}px)`;
+  g.appendChild(arrowsSvg(tr, ti, rows));
+  for (const tal of tr.talents) g.appendChild(talEl(tal, ti));
+  gw.appendChild(g); box.appendChild(gw);
+  return box;
+}
+function cellCenter(r, c) { return { x: (c - 1) * (CELL + COLGAP) + CELL / 2, y: (r - 1) * (CELL + ROWGAP) + CELL / 2 }; }
+function arrowsSvg(tr, ti, rows) {
+  const NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('class', 'arrows'); svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('viewBox', `0 0 ${4 * CELL + 3 * COLGAP} ${rows * CELL + (rows - 1) * ROWGAP}`);
+  svg.innerHTML = `<defs>
+    <marker id="ah-on-${ti}" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L8 4L0 8z" fill="#ffd100"/></marker>
+    <marker id="ah-off-${ti}" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L8 4L0 8z" fill="#6b6472"/></marker></defs>`;
+  const half = CELL / 2 + 2;
+  for (const t of tr.talents) {
+    if (!t.req) continue;
+    const q = findTal(ti, t.req); if (!q) continue;
+    const a = cellCenter(q.r, q.c), b = cellCenter(t.r, t.c);
+    let d;
+    if (q.c === t.c) d = `M${a.x} ${a.y + half} L${b.x} ${b.y - half}`;
+    else if (q.r === t.r) { const s = Math.sign(b.x - a.x); d = `M${a.x + s * half} ${a.y} L${b.x - s * half} ${b.y}`; }
+    else { const s = Math.sign(b.x - a.x); d = `M${a.x + s * half} ${a.y} L${b.x} ${a.y} L${b.x} ${b.y - half}`; }
+    const on = reqMet(ti, t);
+    const p = document.createElementNS(NS, 'path');
+    p.setAttribute('d', d); p.setAttribute('fill', 'none'); p.setAttribute('stroke', on ? '#ffd100' : '#6b6472');
+    p.setAttribute('stroke-width', '3'); p.setAttribute('marker-end', `url(#ah-${on ? 'on' : 'off'}-${ti})`);
+    svg.appendChild(p);
+  }
+  return svg;
+}
+function talEl(t, ti) {
+  const rank = rankOf(ti, t.n), add = canAdd(ti, t);
+  const b = document.createElement('button'); b.type = 'button';
+  b.className = 'tal ' + (rank >= t.max ? 'maxed' : rank > 0 || add ? 'open' : 'locked');
+  b.style.gridRow = t.r; b.style.gridColumn = t.c;
+  b.setAttribute('aria-label', `${t.n}, rank ${rank} of ${t.max}`);
+  b.appendChild(icoEl(t.i));
+  const rk = document.createElement('span'); rk.className = 'rk'; rk.textContent = `${rank}/${t.max}`; b.appendChild(rk);
+  b.dataset.k = tk(ti, t.n);
+  const refresh = e => {
+    renderTalents();
+    const nb = [...document.querySelectorAll('#talentView .tal')].find(x => x.dataset.k === tk(ti, t.n));
+    if (nb) { nb.focus({ preventScroll: true }); showTalTip(t, ti, e); }
+  };
+  b.addEventListener('click', e => { if (changeTal(ti, t, e.shiftKey ? -1 : 1)) refresh(e); });
+  b.addEventListener('contextmenu', e => { e.preventDefault(); if (changeTal(ti, t, -1)) refresh(e); });
+  b.addEventListener('mouseenter', e => showTalTip(t, ti, e));
+  b.addEventListener('mousemove', moveTip);
+  b.addEventListener('mouseleave', hideTip);
+  return b;
+}
+function showTalTip(t, ti, e) {
+  const rank = rankOf(ti, t.n);
+  tip.innerHTML = '';
+  const add = (cls, txt) => { const d = document.createElement('div'); d.className = cls; d.textContent = txt; tip.appendChild(d); return d; };
+  const t1 = document.createElement('div'); t1.className = 't1';
+  const b = document.createElement('b'); b.textContent = t.n; t1.appendChild(b);
+  const r = document.createElement('span'); r.textContent = `Rank ${rank}/${t.max}`; t1.appendChild(r);
+  tip.appendChild(t1);
+  if (!rowOpen(ti, t)) add('r', `Requires ${(t.r - 1) * 5} points in ${trees()[ti].name} Talents`);
+  if (!reqMet(ti, t)) { const q = findTal(ti, t.req); add('r', `Requires ${q.max} point${q.max > 1 ? 's' : ''} in ${q.n}`); }
+  if (t.act && t.cost) t.cost.split(' | ').forEach(x => add('ml', x));
+  if (rank > 0) add('d', t.d[rank - 1] || '');
+  if (rank < t.max) {
+    if (rank > 0) add('ml', 'Next rank:').style.marginTop = '6px';
+    add('d', t.d[rank] || t.d[t.d.length - 1] || '');
+  }
+  if (t.act) add('g', 'Adds an ability to your spellbook.');
+  if (t.st === 'new') add('b', 'New in WoW: Forever.');
+  else if (t.st === 'changed') add('mu', 'Changed from Classic.');
+  else if (t.st === 'moved') add('mu', 'Moved from its Classic spot.');
+  if (canAdd(ti, t)) add('g', 'Click to learn');
+  if (canRemove(ti, t)) add('mu', 'Right-click to unlearn');
+  tip.hidden = false; moveTip(e);
+}
+
+// ---------- tooltip ----------
+const tip = $('tip');
+function tipOn(el, getSpell, getKey) {
+  el.addEventListener('mouseenter', e => { const s = getSpell(); if (s) showTip(s, getKey && getKey(), e); });
+  el.addEventListener('mousemove', moveTip);
+  el.addEventListener('mouseleave', hideTip);
+}
+function showTip(s, k, e) {
+  tip.innerHTML = '';
+  const t1 = document.createElement('div'); t1.className = 't1';
+  const b = document.createElement('b'); b.textContent = s.n; t1.appendChild(b);
+  if (s.r) { const r = document.createElement('span'); r.textContent = 'Rank ' + s.r; t1.appendChild(r); }
+  tip.appendChild(t1);
+  const add = (cls, txt) => { const d = document.createElement('div'); d.className = cls; d.textContent = txt; tip.appendChild(d); };
+  (s.m || []).forEach(m => add('ml', m));
+  if (s.d) add('d', s.d);
+  if (s.t) add('g', 'Talent ability: needs the talent to appear in your spellbook.');
+  if (s.new) add('b', 'New in WoW: Forever.');
+  if (s.racial) add('mu', s.race + ' racial');
+  if (s.custom) add('mu', 'Custom entry');
+  if (s.lv && s.lv.length > 1) add('mu', 'Ranks at level ' + s.lv.join(', '));
+  else if (s.lvl) add('mu', s.lvl);
+  if (k) add('mu', 'Key: ' + prettyKey(k));
+  tip.hidden = false; moveTip(e);
+}
+function moveTip(e) {
+  if (tip.hidden) return;
+  const pad = 14, w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = e.clientX + pad, y = e.clientY + pad;
+  if (x + w > innerWidth - 8) x = e.clientX - w - pad;
+  if (y + h > innerHeight - 8) y = e.clientY - h - pad;
+  tip.style.left = Math.max(8, x) + 'px'; tip.style.top = Math.max(8, y) + 'px';
+}
+function hideTip() { tip.hidden = true; }
+
+// ---------- key / mouse capture ----------
+document.addEventListener('keydown', e => {
+  if (e.target.matches('input, textarea, select') && e.key !== 'Escape') return;
+  if (e.key === 'Escape') { if (moving) toggleMove(false); else if (binding) toggleBind(false); else if (held) { held = null; renderStatus(); renderSpells(); } return; }
+  if (moving) { nudgeBar(e); return; }
+  if (!binding || !bindTarget) return;
+  if (['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) return;
+  e.preventDefault();
+  if (e.code === 'Backspace') { unbindTarget(); status('Cleared keybind'); return; }
+  const n = codeName(e.code); if (!n) return;
+  bindKey(withMods(e, n));
+});
+document.addEventListener('mousedown', e => {
+  if (!binding || !hoverSlot) return;
+  const m = { 1:'BUTTON3', 3:'BUTTON4', 4:'BUTTON5' }[e.button];
+  if (m) { e.preventDefault(); bindTarget = hoverSlot; bindKey(withMods(e, m)); }
+});
+document.addEventListener('auxclick', e => { if (binding && hoverSlot) e.preventDefault(); });
+document.addEventListener('mouseup', e => { if (binding && hoverSlot && e.button > 2) e.preventDefault(); });
+document.addEventListener('wheel', e => {
+  if (!binding || !hoverSlot) return;
+  e.preventDefault(); bindTarget = hoverSlot;
+  bindKey(withMods(e, e.deltaY < 0 ? 'MOUSEWHEELUP' : 'MOUSEWHEELDOWN'));
+}, { passive: false });
+
+function showBarsView() { if (state.view === 'talents') { state.view = 'bars'; save(); renderViews(); renderSpells(); } }
+function toggleBind(on) {
+  if (on) { setMoving(false); showBarsView(); }
+  binding = on; bindTarget = on ? hoverSlot : null; held = null;
+  $('bindBtn').setAttribute('aria-pressed', on);
+  renderBars(); renderStatus(); renderSpells();
+}
+function setMoving(on) { moving = on; $('moveBtn').setAttribute('aria-pressed', on); if (!on) selectedBar = null; }
+function toggleMove(on) {
+  if (on) { binding = false; bindTarget = null; $('bindBtn').setAttribute('aria-pressed', false); held = null; showBarsView(); }
+  setMoving(on); hideTip();
+  renderBars(); renderStatus(); renderSpells();
+}
+
+// ---------- toolbar ----------
+$('bindBtn').onclick = () => toggleBind(!binding);
+$('search').addEventListener('input', e => { query = e.target.value; renderTabs(); renderSpells(); });
+$('layoutSel').onchange = e => { layouts().active = e.target.value; save(); renderAll(); };
+function uniqueName(base) { const ls = layouts(); let n = base, i = 2; while (ls.list[n]) n = `${base} ${i++}`; return n; }
+$('newLayout').onclick = () => { const ls = layouts(); const n = uniqueName('Layout'); ls.list[n] = blankLayout(state.cls); ls.active = n; save(); renderAll(); };
+$('dupLayout').onclick = () => { const ls = layouts(); const n = uniqueName(ls.active + ' copy'); ls.list[n] = JSON.parse(JSON.stringify(L())); ls.active = n; save(); renderAll(); };
+$('delLayout').onclick = () => {
+  const ls = layouts(), btn = $('delLayout');
+  if (!delArmed) { delArmed = true; btn.textContent = `Delete “${ls.active}”?`; btn.className = 'btn danger'; setTimeout(() => { if (delArmed) renderLayouts(); }, 4000); return; }
+  delete ls.list[ls.active];
+  if (!Object.keys(ls.list).length) ls.list['Layout'] = blankLayout(state.cls);
+  ls.active = Object.keys(ls.list)[0]; save(); renderAll();
+};
+$('sizeSel').onchange = e => { state.size = +e.target.value; save(); renderBars(); };
+$('area').addEventListener('pointerdown', e => { if (e.target === e.currentTarget) { selectedBar = null; e.currentTarget.querySelectorAll('.bar.selected').forEach(b => b.classList.remove('selected')); } });
+$('moveBtn').onclick = () => toggleMove(!moving);
+$('resetPos').onclick = () => { const lay = L(); lay.pos = {}; lay.shape = BARS.map(b => b.rows); save(); renderBars(); renderToggles(); status('Bars moved back to their default spots'); };
+// Window size can switch Side by side on or off; the bar area re-lays its bars whenever its own width changes
+// (window resize or dragging the divider), so bars stay inside their half and default spots follow the new width.
+let resizeT, lastSplitOk = canSplit();
+addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (canSplit() !== lastSplitOk) { lastSplitOk = canSplit(); renderViews(); } }, 120); });
+let areaW = 0, areaRaf = 0;
+new ResizeObserver(entries => {
+  const w = Math.round(entries[0].contentRect.width);
+  if (!w || w === areaW) return;
+  areaW = w; cancelAnimationFrame(areaRaf); areaRaf = requestAnimationFrame(renderBars);
+}).observe($('area'));
+$('clearBinds').onclick = () => { L().binds = blankLayout(state.cls).binds; save(); renderBars(); renderKb(); status('Keybinds reset to 1–= on Action Bar 1'); };
+$('clearBars').onclick = () => {
+  const btn = $('clearBars');
+  if (btn.dataset.armed !== '1') { btn.dataset.armed = '1'; btn.textContent = 'Click again to clear every button'; btn.className = 'btn danger'; setTimeout(() => { btn.dataset.armed = ''; btn.textContent = 'Clear all bars'; btn.className = 'btn ghost'; }, 4000); return; }
+  btn.dataset.armed = ''; btn.textContent = 'Clear all bars'; btn.className = 'btn ghost';
+  const lay = L(); for (const k in lay.slots) lay.slots[k] = Array(12).fill(null); save(); renderBars(); renderKb();
+};
+
+// ---------- export / import ----------
+const dlg = $('shareDlg');
+$('shareBtn').onclick = () => {
+  const ls = layouts();
+  $('exportTxt').value = JSON.stringify({ app:'forever-action-bars', v:1, cls:state.cls, name:ls.active, layout:L() });
+  $('copyMsg').textContent = ''; $('importMsg').textContent = ''; $('importTxt').value = '';
+  if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
+};
+$('closeDlg').onclick = () => dlg.close ? dlg.close() : dlg.removeAttribute('open');
+$('copyBtn').onclick = () => {
+  const ta = $('exportTxt'), msg = $('copyMsg');
+  const fallback = () => { ta.focus(); ta.select(); msg.className = 'msg'; msg.textContent = 'Text selected. Press Ctrl+C to copy.'; };
+  try { navigator.clipboard.writeText(ta.value).then(() => { msg.className = 'msg ok'; msg.textContent = 'Copied'; }, fallback); } catch { fallback(); }
+};
+$('importBtn').onclick = () => {
+  const msg = $('importMsg');
+  try {
+    const d = JSON.parse($('importTxt').value);
+    if (d.app !== 'forever-action-bars' || !d.layout || !D.classes[d.cls]) throw 0;
+    state.cls = d.cls; const ls = layouts(); const n = uniqueName(d.name || 'Imported');
+    ls.list[n] = d.layout; ls.active = n; save(); renderAll();
+    msg.className = 'msg ok'; msg.textContent = `Imported as “${n}” for ${d.cls}`;
+  } catch { msg.className = 'msg err'; msg.textContent = 'That text is not a Forever Action Bars layout. Paste the full text from Export.'; }
+};
+
+function renderAll() { renderClasses(); renderLayouts(); renderTabs(); renderSpells(); renderBars(); renderToggles(); renderStatus(); renderKb(); renderViews(); }
+$('dataDate').textContent = D.generated;
+renderAll();
+if (location.hash === '#move') { state.view = 'bars'; renderViews(); toggleMove(true); selectBar(0, true); }   // link straight into Move bars mode
+if (location.hash === '#talents') { state.view = 'talents'; renderViews(); }
+})();
+</script>
+
+</html>
